@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpsPilot | Multi-Agent Incident Response</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            dark: {
+              900: '#0b0f17',
+              800: '#111827',
+              700: '#1f2937',
+              600: '#374151'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .badge-pulse {
+      animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f17;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2d3748;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-[#080c14] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+
+  <!-- Navigation Header -->
+  <header class="border-b border-slate-800/80 bg-[#0b0f17]/90 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <span class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">OpsPilot</span>
+          <span class="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Multi-Agent AI</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4 text-xs">
+        <button onclick="toggleProblemModal()" class="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-medium transition flex items-center space-x-1.5">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Real-World Problem Brief</span>
+        </button>
+        <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 badge-pulse"></span>
+          <span>Read-Only Safety Guard: ACTIVE</span>
+        </div>
+        <div id="wsIndicator" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono">
+          <span class="w-2 h-2 rounded-full bg-indigo-400 badge-pulse"></span>
+          <span id="wsStatusText">WebSocket: CONNECTING...</span>
+        </div>
+        <div class="hidden md:flex items-center space-x-1.5 text-slate-400">
+          <span>Agents:</span>
+          <span class="font-semibold text-slate-200">5 Active</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Real-World Problem vs OpsPilot Solution Banner -->
+    <div class="glass-panel rounded-2xl p-5 border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-purple-950/30">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/30">
+              The Real-World Engineering Problem
+            </span>
+            <span class="text-xs text-slate-400">Why Incidents Spiral Out of Control</span>
+          </div>
+          <h2 class="text-sm md:text-base font-bold text-white">
+            When production breaks, engineers waste 45+ minutes hunting logs, jumping to false conclusions, and risking destructive rollbacks.
+          </h2>
+          <p class="text-xs text-slate-300">
+            OpsPilot replaces war room chaos with an autonomous, read-only AI agent team that correlates facts, tests hypotheses, and delivers verified remediation steps.
+          </p>
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+          <button onclick="toggleProblemModal()" class="text-xs px-3 py-2 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30">
+            <span>Read 4 Breakdown Points</span>
+            <span>&rarr;</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Action Bar & Scenario Picker -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Launch Incident Form -->
+      <div class="lg:col-span-2 glass-panel rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center">
+              <svg class="w-5 h-5 mr-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              Trigger Incident Response
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Select a seeded outage scenario or paste real-time alerts and container logs.</p>
+          </div>
+          <span class="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">Deterministic Demo Ready</span>
+        </div>
+
+        <!-- Preset buttons -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-slate-300 mb-2">One-Click Seeded Demo Outages:</label>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {% for s in scenarios %}
+            <button onclick="loadScenario('{{ s.id }}')" 
+                    class="scenario-btn text-left p-2.5 rounded-xl border border-slate-700/70 hover:border-indigo-500 bg-slate-900/60 hover:bg-slate-800/80 transition group relative"
+                    data-id="{{ s.id }}">
+              <div class="text-xs font-bold text-slate-200 group-hover:text-indigo-300 line-clamp-1">{{ s.title }}</div>
+              <div class="text-[10px] text-slate-400 mt-1 font-mono flex items-center justify-between">
+                <span>{{ s.service }}</span>
+                <span class="text-indigo-400 font-semibold">Load &rarr;</span>
+              </div>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        <form id="incidentForm" onsubmit="handleStartIncident(event)" class="space-y-4">
+          <input type="hidden" id="selectedScenarioId" name="scenario_id" value="scenario-checkout-failure">
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Incident Title</label>
+              <input type="text" id="incidentTitle" required
+                     class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                     value="Checkout API 500 Spike & Payment Processing Timeouts">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Target Service</label>
+              <input type="text" id="incidentService" required
+                     class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                     value="checkout-service">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Alert Payload / Description</label>
+            <textarea id="incidentAlert" rows="2" required
+                      class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">ALERT [CRITICAL] PagerDuty: Checkout-Service ErrorRate > 8.5% in us-east-1. Upstream dependencies payment-gateway-v2 throwing HTTP 504 Gateway Timeout.</textarea>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-medium text-slate-300">Raw Logs / Context (Optional)</label>
+              <span class="text-[10px] text-slate-400">Leave blank to use scenario logs</span>
+            </div>
+            <textarea id="incidentLogs" rows="3"
+                      class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500 font-mono"
+                      placeholder="Paste raw application or container logs..."></textarea>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <div class="text-xs text-slate-400 flex items-center">
+              <span class="w-2 h-2 rounded-full bg-indigo-400 inline-block mr-2"></span>
+              Autonomous Agent Orchestration
+            </div>
+            <button type="submit" id="btnLaunch"
+                    class="px-6 py-2.5 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-lg shadow-indigo-600/30 transition flex items-center space-x-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>Launch Multi-Agent Investigation</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Past Investigations List -->
+      <div class="glass-panel rounded-2xl p-5 shadow-xl flex flex-col h-full">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
+          <span>Recent Investigations</span>
+          <button onclick="fetchIncidents()" class="text-indigo-400 hover:text-indigo-300 text-xs font-normal">Refresh</button>
+        </h3>
+        <div id="incidentsList" class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[360px]">
+          {% if incidents %}
+            {% for inc in incidents %}
+            <div onclick="selectIncident('{{ inc.id }}')"
+                 class="p-3 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800/70 hover:border-indigo-500/50 cursor-pointer transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-200 line-clamp-1">{{ inc.title }}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold 
+                  {% if inc.status == 'completed' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                  {% elif inc.status == 'investigating' %}bg-amber-500/10 text-amber-400 border border-amber-500/20 badge-pulse
+                  {% else %}bg-slate-700/30 text-slate-400{% endif %}">
+                  {{ inc.status }}
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-400 font-mono mt-1 flex justify-between">
+                <span>{{ inc.service }}</span>
+                <span class="text-slate-500 text-[10px]">{{ inc.id }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-center py-10 text-slate-500 text-xs">
+              No investigations run yet. Launch one above!
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Incident Live Workspace -->
+    <div id="activeWorkspace" class="space-y-6">
+      
+      <!-- Incident Status Banner & Plan Overview -->
+      <div class="glass-panel rounded-2xl p-6 border-indigo-500/20">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="badgeIncidentStatus" class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                AWAITING INCIDENT
+              </span>
+              <span id="currentIncidentId" class="text-xs font-mono text-slate-400"></span>
+            </div>
+            <h1 id="currentIncidentTitle" class="text-xl font-bold text-white mt-1">Select an incident to view live agent coordination</h1>
+          </div>
+
+          <!-- Progress Indicators -->
+          <div class="flex items-center space-x-6 text-xs">
+            <div>
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Service</span>
+              <span id="currentService" class="font-mono text-slate-200 font-bold">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Timeframe</span>
+              <span id="currentTimeframe" class="font-mono text-slate-200">-</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">Confidence</span>
+              <span id="currentConfidence" class="font-bold text-emerald-400">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Coordinator's Dynamic Plan -->
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center">
+            <svg class="w-4 h-4 mr-1.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            Coordinator Execution Plan
+          </h4>
+          <p id="planSummary" class="text-xs text-slate-300 mb-3 italic">Launch an investigation to see Coordinator plan breakdown.</p>
+          <div id="planStepsContainer" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <!-- Dynamically populated steps -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Coordination Grid -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center">
+            <svg class="w-4 h-4 mr-1.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            Specialized Agents Team: Status & Outputs
+          </h3>
+          <span class="text-[11px] text-slate-400">Structured Findings Exchange</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="agentCardsGrid">
+          <!-- Log Investigator Card -->
+          <div id="card-log_investigator" class="glass-panel rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-200 flex items-center">
+                  <span class="w-2 h-2 rounded-full bg-slate-500 mr-2 status-dot"></span>
+                  Log Investigator
+                </span>
+                <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 status-pill">idle</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Scans errors, exception signatures, and affected services.</p>
+              <div class="mt-3 text-[11px] font-mono text-slate-300 space-y-1 agent-stats">
+                <div>Errors Found: <span class="text-slate-400 font-bold stat-errors">-</span></div>
+                <div>Services: <span class="text-slate-400 stat-services">-</span></div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono agent-tool">
+              Tool: search_logs()
+            </div>
+          </div>
+
+          <!-- Research Agent Card -->
+          <div id="card-research_agent" class="glass-panel rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-200 flex items-center">
+                  <span class="w-2 h-2 rounded-full bg-slate-500 mr-2 status-dot"></span>
+                  Research Agent
+                </span>
+                <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 status-pill">idle</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Queries live status endpoints, cites sources & timestamps.</p>
+              <div class="mt-3 text-[11px] font-mono text-slate-300 space-y-1 agent-stats">
+                <div>Probes Checked: <span class="text-slate-400 font-bold stat-probes">-</span></div>
+                <div>Failed / Retries: <span class="text-amber-400 font-bold stat-unavail">-</span></div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono agent-tool">
+              Tool: check_status_page()
+            </div>
+          </div>
+
+          <!-- Timeline Analyst Card -->
+          <div id="card-timeline_analyst" class="glass-panel rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-200 flex items-center">
+                  <span class="w-2 h-2 rounded-full bg-slate-500 mr-2 status-dot"></span>
+                  Timeline Analyst
+                </span>
+                <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 status-pill">idle</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Synthesizes timeline, labels uncertainty & conflicting signals.</p>
+              <div class="mt-3 text-[11px] font-mono text-slate-300 space-y-1 agent-stats">
+                <div>Events Sequenced: <span class="text-slate-400 font-bold stat-events">-</span></div>
+                <div>Conflicts: <span class="text-amber-400 stat-conflicts">-</span></div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono agent-tool">
+              Tool: align_chronology()
+            </div>
+          </div>
+
+          <!-- Report Writer Card -->
+          <div id="card-report_writer" class="glass-panel rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-200 flex items-center">
+                  <span class="w-2 h-2 rounded-full bg-slate-500 mr-2 status-dot"></span>
+                  Report Writer
+                </span>
+                <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 status-pill">idle</span>
+              </div>
+              <p class="text-[11px] text-slate-400">Assembles verified facts vs hypotheses & safe next steps.</p>
+              <div class="mt-3 text-[11px] font-mono text-slate-300 space-y-1 agent-stats">
+                <div>Confidence: <span class="text-emerald-400 font-bold stat-conf">-</span></div>
+                <div>Next Steps: <span class="text-slate-400 stat-actions">-</span></div>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono agent-tool">
+              Tool: compile_incident_report()
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final Incident Report & Timeline Section -->
+      <div id="reportSection" class="glass-panel rounded-2xl p-6 border-indigo-500/20 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+              ✓
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-white">Consolidated Incident Report & Action Plan</h2>
+              <p class="text-xs text-slate-400">Generated by OpsPilot Report Writer • Strictly verified against collected telemetry</p>
+            </div>
+          </div>
+          <button onclick="window.print()" class="text-xs text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 flex items-center space-x-1">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            Print / Export
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Summary, Cause, Facts & Hypotheses -->
+          <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Executive Summary & Cause Box -->
+            <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Executive Incident Summary</span>
+                <p id="reportSummary" class="text-sm text-slate-200 mt-1 leading-relaxed">-</p>
+              </div>
+
+              <div class="p-3 rounded-lg bg-indigo-950/40 border border-indigo-500/30 flex items-start space-x-3">
+                <svg class="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                <div>
+                  <span class="text-[10px] uppercase font-bold text-indigo-300 tracking-wider">Likely Root Cause</span>
+                  <div id="reportLikelyCause" class="text-sm font-semibold text-white mt-0.5">-</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Verified Facts vs Hypotheses -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Verified Facts -->
+              <div class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+                <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center">
+                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  Verified Facts (Proven)
+                </h4>
+                <ul id="verifiedFactsList" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+                  <li>Telemetry awaiting data...</li>
+                </ul>
+              </div>
+
+              <!-- Hypotheses -->
+              <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30">
+                <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center">
+                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Hypotheses (Under Review)
+                </h4>
+                <ul id="hypothesesList" class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+                  <li>Awaiting analysis...</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Recommended Actions Checklist -->
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center">
+                <svg class="w-4 h-4 mr-1.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                Prioritized Next Steps (Non-Destructive & Read-Only Checks)
+              </h3>
+              <div id="actionsContainer" class="space-y-3">
+                <!-- Action items -->
+              </div>
+            </div>
+
+            <!-- Unanswered Questions -->
+            <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
+              <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Unanswered Questions / Follow-up Investigations</h4>
+              <ul id="unansweredQuestionsList" class="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+                <li>Awaiting synthesis...</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Chronological Timeline Column -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <span>Incident Chronology</span>
+              <span class="text-[10px] font-mono text-slate-500">Timeline Analyst</span>
+            </h3>
+
+            <div id="timelineContainer" class="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+              <!-- Timeline items populated here -->
+              <div class="text-xs text-slate-500 italic">Timeline awaiting agent synthesis...</div>
+            </div>
+
+            <!-- Key Evidence & Log Excerpts -->
+            <div class="pt-4 border-t border-slate-800">
+              <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Key Log Excerpts & Evidence</h4>
+              <div id="evidenceContainer" class="space-y-2 max-h-[300px] overflow-y-auto font-mono text-[11px]">
+                <div class="text-slate-500 italic">No log citations yet.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Live Agent Communication & Tool Activity Stream -->
+      <div class="glass-panel rounded-2xl p-5 border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center">
+            <svg class="w-4 h-4 mr-1.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Live Multi-Agent Event Stream & Telemetry Bus
+          </h3>
+          <span class="text-[10px] font-mono text-slate-500">Auto-refreshing polling stream</span>
+        </div>
+        <div id="agentActivityLogs" class="space-y-2 font-mono text-[11px] max-h-60 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+          <div class="text-slate-500 italic">No activity logged yet. Launch an incident to observe real-time agent coordination.</div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Real World Problem Interactive Modal -->
+  <div id="problemModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel max-w-3xl w-full rounded-2xl p-6 border-indigo-500/40 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Industry Problem Statement</span>
+          <h3 class="text-lg font-bold text-white">The Real-World Crisis in Production Incident Response</h3>
+        </div>
+        <button onclick="toggleProblemModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <!-- Breakdown 1 -->
+        <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+          <div class="flex items-center space-x-2 text-red-400 font-bold">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center text-[10px]">1</span>
+            <h4>Context & Log Fragmentation</h4>
+          </div>
+          <p class="text-slate-300">
+            Engineers lose 15-45 minutes digging through Datadog logs, AWS Health, and Cloudflare status dashboards to piece together what broke.
+          </p>
+          <div class="text-[11px] text-emerald-400 font-mono bg-emerald-950/20 p-2 rounded border border-emerald-500/20">
+            ✓ <strong>OpsPilot Fix:</strong> Log Investigator & Research Agents parallelize searches across all data sources automatically.
+          </div>
+        </div>
+
+        <!-- Breakdown 2 -->
+        <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+          <div class="flex items-center space-x-2 text-red-400 font-bold">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center text-[10px]">2</span>
+            <h4>Confirmation Bias & False Hypotheses</h4>
+          </div>
+          <p class="text-slate-300">
+            Engineers see high DB CPU and blame the database, missing the fact that an upstream payment gateway timeout caused connection thread locks.
+          </p>
+          <div class="text-[11px] text-emerald-400 font-mono bg-emerald-950/20 p-2 rounded border border-emerald-500/20">
+            ✓ <strong>OpsPilot Fix:</strong> Strict mathematical separation between <em>Verified Facts</em> and <em>Working Hypotheses</em>.
+          </div>
+        </div>
+
+        <!-- Breakdown 3 -->
+        <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+          <div class="flex items-center space-x-2 text-red-400 font-bold">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center text-[10px]">3</span>
+            <h4>Destructive Impulses in War Rooms</h4>
+          </div>
+          <p class="text-slate-300">
+            Under panic, teams execute destructive restarts or rollbacks that trigger thundering herds and make outages 10x worse.
+          </p>
+          <div class="text-[11px] text-emerald-400 font-mono bg-emerald-950/20 p-2 rounded border border-emerald-500/20">
+            ✓ <strong>OpsPilot Fix:</strong> 100% Read-Only Safety Guard with non-destructive verification scripts (P0/P1).
+          </div>
+        </div>
+
+        <!-- Breakdown 4 -->
+        <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+          <div class="flex items-center space-x-2 text-red-400 font-bold">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center text-[10px]">4</span>
+            <h4>Post-Mortem Reporting Overhead</h4>
+          </div>
+          <p class="text-slate-300">
+            Timelines and causal evidence disappear after incidents, making root-cause remediation and audit compliance impossible.
+          </p>
+          <div class="text-[11px] text-emerald-400 font-mono bg-emerald-950/20 p-2 rounded border border-emerald-500/20">
+            ✓ <strong>OpsPilot Fix:</strong> Automated, printable executive post-mortem generated by Timeline Analyst & Report Writer.
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+        <span class="text-slate-400">OpsPilot addresses this problem through multi-agent specialization.</span>
+        <button onclick="toggleProblemModal()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+          Got it, Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-[#080c14] py-4 text-center text-xs text-slate-600">
+    OpsPilot Multi-Agent Incident Response System • Designed for resilient SRE workflows • Read-only safety guard enforced
+  </footer>
+
+  <!-- Frontend Logic & Real-Time Polling -->
+  <script>
+    let currentIncidentId = null;
+    let pollInterval = null;
+    let ws = null;
+    let scenariosData = {{ scenarios | tojson }};
+
+    function connectWebSocket(id) {
+      if (ws) {
+        try { ws.close(); } catch(e){}
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/incidents/${id}`;
+      
+      const indicator = document.getElementById('wsIndicator');
+      const statusText = document.getElementById('wsStatusText');
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          indicator.className = 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono';
+          statusText.textContent = 'Live Socket: STREAMING';
+        };
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          handleWebSocketMessage(msg);
+        };
+
+        ws.onclose = () => {
+          indicator.className = 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono';
+          statusText.textContent = 'Live Socket: RECONNECTING';
+        };
+
+        ws.onerror = (err) => {
+          console.warn('WebSocket error, falling back to polling:', err);
+        };
+      } catch (err) {
+        console.warn('Could not establish WebSocket, fallback active', err);
+      }
+    }
+
+    function handleWebSocketMessage(msg) {
+      if (msg.type === 'SNAPSHOT') {
+        renderIncidentWorkspace(msg.data);
+      } else if (msg.type === 'AGENT_LOG') {
+        appendLiveLog(msg.data);
+      } else if (msg.type === 'AGENT_STATUS') {
+        loadIncidentDetail(currentIncidentId);
+      } else if (msg.type === 'PLAN_CREATED' || msg.type === 'REPORT_COMPLETED') {
+        loadIncidentDetail(currentIncidentId);
+        fetchIncidents();
+      }
+    }
+
+    function appendLiveLog(log) {
+      const logsContainer = document.getElementById('agentActivityLogs');
+      const timeStr = (log.timestamp || new Date().toISOString()).split('T')[1].slice(0, 8);
+      const logHtml = `
+        <div class="flex items-start space-x-2 py-0.5 fade-in">
+          <span class="text-slate-500 text-[10px]">${timeStr}</span>
+          <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${
+            log.level === 'ERROR' ? 'bg-red-500/20 text-red-400' :
+            log.level === 'WARN' ? 'bg-amber-500/20 text-amber-400' :
+            log.level === 'TOOL' ? 'bg-purple-500/20 text-purple-400' :
+            'bg-blue-500/20 text-blue-400'
+          }">${log.level}</span>
+          <span class="text-slate-400 font-semibold">[${log.agent_name}]:</span>
+          <span class="text-slate-200">${log.message}</span>
+        </div>
+      `;
+      logsContainer.insertAdjacentHTML('beforeend', logHtml);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function toggleProblemModal() {
+      const modal = document.getElementById('problemModal');
+      modal.classList.toggle('hidden');
+    }
+
+    function loadScenario(scenarioId) {
+      const s = scenariosData.find(x => x.id === scenarioId);
+      if (!s) return;
+
+      document.getElementById('selectedScenarioId').value = s.id;
+      document.getElementById('incidentTitle').value = s.title;
+      document.getElementById('incidentService').value = s.service;
+      document.getElementById('incidentAlert').value = s.alert_text;
+      document.getElementById('incidentLogs').value = s.logs ? s.logs.join('\n') : '';
+
+      // Highlight button
+      document.querySelectorAll('.scenario-btn').forEach(btn => {
+        if (btn.dataset.id === scenarioId) {
+          btn.classList.add('border-indigo-500', 'bg-slate-800');
+        } else {
+          btn.classList.remove('border-indigo-500', 'bg-slate-800');
+        }
+      });
+    }
+
+    async function handleStartIncident(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnLaunch');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-2">⟳</span> Launching...`;
+
+      const payload = {
+        title: document.getElementById('incidentTitle').value,
+        service: document.getElementById('incidentService').value,
+        alert_text: document.getElementById('incidentAlert').value,
+        logs_text: document.getElementById('incidentLogs').value,
+        scenario_id: document.getElementById('selectedScenarioId').value
+      };
+
+      try {
+        const res = await fetch('/api/incidents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        currentIncidentId = data.incident_id;
+        connectWebSocket(currentIncidentId);
+        startPolling(currentIncidentId);
+        fetchIncidents();
+      } catch (err) {
+        alert('Failed to start incident: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>Launch Multi-Agent Investigation</span>
+        `;
+      }
+    }
+
+    function selectIncident(id) {
+      currentIncidentId = id;
+      loadIncidentDetail(id);
+      connectWebSocket(id);
+      startPolling(id);
+    }
+
+    async function fetchIncidents() {
+      try {
+        const res = await fetch('/api/incidents');
+        const list = await res.json();
+        const container = document.getElementById('incidentsList');
+        if (!list || list.length === 0) {
+          container.innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">No investigations run yet.</div>`;
+          return;
+        }
+
+        container.innerHTML = list.map(inc => `
+          <div onclick="selectIncident('${inc.id}')"
+               class="p-3 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800/70 hover:border-indigo-500/50 cursor-pointer transition ${inc.id === currentIncidentId ? 'border-indigo-500 bg-slate-800/80' : ''}">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-200 line-clamp-1">${inc.title}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold 
+                ${inc.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                  inc.status === 'investigating' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 badge-pulse' :
+                  'bg-slate-700/30 text-slate-400'}">
+                ${inc.status}
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-400 font-mono mt-1 flex justify-between">
+              <span>${inc.service}</span>
+              <span class="text-slate-500 text-[10px]">${inc.id}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error fetching incidents:', err);
+      }
+    }
+
+    async function loadIncidentDetail(id) {
+      try {
+        const res = await fetch(`/api/incidents/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        renderIncidentWorkspace(data);
+      } catch (err) {
+        console.error('Error loading detail:', err);
+      }
+    }
+
+    function renderIncidentWorkspace(data) {
+      const inc = data.incident;
+      const runs = data.agent_runs || [];
+      const logs = data.logs || [];
+      const report = data.report;
+
+      // Update header
+      document.getElementById('currentIncidentId').textContent = inc.id;
+      document.getElementById('currentIncidentTitle').textContent = inc.title;
+      document.getElementById('currentService').textContent = inc.service;
+      document.getElementById('currentTimeframe').textContent = inc.timeframe || 'Active';
+
+      const badge = document.getElementById('badgeIncidentStatus');
+      badge.textContent = inc.status.toUpperCase();
+      if (inc.status === 'completed') {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      } else if (inc.status === 'investigating') {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 badge-pulse';
+      }
+
+      // Render Coordinator Plan
+      document.getElementById('planSummary').textContent = inc.plan_summary || 'Investigating...';
+      const stepsContainer = document.getElementById('planStepsContainer');
+      if (inc.plan_json && Array.isArray(inc.plan_json)) {
+        stepsContainer.innerHTML = inc.plan_json.map(step => {
+          const matchingRun = runs.find(r => r.agent_name === step.agent);
+          const isDone = matchingRun && matchingRun.status === 'completed';
+          const isRunning = matchingRun && matchingRun.status === 'running';
+
+          return `
+            <div class="p-3 rounded-xl border ${isDone ? 'border-emerald-500/40 bg-emerald-950/20' : isRunning ? 'border-amber-500/40 bg-amber-950/20' : 'border-slate-800 bg-slate-900/40'}">
+              <div class="flex items-center justify-between text-[11px] font-bold">
+                <span class="text-slate-300">Phase ${step.step}: ${step.role}</span>
+                <span class="font-mono text-[10px] ${isDone ? 'text-emerald-400' : isRunning ? 'text-amber-400' : 'text-slate-500'}">
+                  ${isDone ? 'COMPLETED' : isRunning ? 'RUNNING...' : 'PENDING'}
+                </span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1 line-clamp-2">${step.goal}</p>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Update Agent Cards
+      runs.forEach(run => {
+        const card = document.getElementById(`card-${run.agent_name}`);
+        if (!card) return;
+
+        const pill = card.querySelector('.status-pill');
+        const dot = card.querySelector('.status-dot');
+        pill.textContent = run.status;
+
+        if (run.status === 'completed') {
+          pill.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 status-pill';
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 mr-2 status-dot';
+        } else if (run.status === 'running') {
+          pill.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 status-pill badge-pulse';
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400 mr-2 status-dot';
+        }
+
+        // Fill stats based on agent output
+        if (run.outputs_json) {
+          const out = run.outputs_json;
+          if (run.agent_name === 'log_investigator') {
+            card.querySelector('.stat-errors').textContent = out.error_count ?? 0;
+            card.querySelector('.stat-services').textContent = (out.services_detected || []).join(', ') || '-';
+          } else if (run.agent_name === 'research_agent') {
+            card.querySelector('.stat-probes').textContent = out.sources_queried ?? 0;
+            card.querySelector('.stat-unavail').textContent = out.unavailable_sources_count ?? 0;
+          } else if (run.agent_name === 'timeline_analyst') {
+            card.querySelector('.stat-events').textContent = out.event_count ?? 0;
+            card.querySelector('.stat-conflicts').textContent = (out.conflicting_signals || []).length;
+          } else if (run.agent_name === 'report_writer') {
+            card.querySelector('.stat-conf').textContent = (report ? (report.confidence_score * 100).toFixed(0) + '%' : '-');
+            card.querySelector('.stat-actions').textContent = (report && report.recommended_actions) ? report.recommended_actions.length : '-';
+          }
+        }
+      });
+
+      // Render Final Report if available
+      if (report) {
+        document.getElementById('currentConfidence').textContent = `${report.confidence_level} (${(report.confidence_score * 100).toFixed(0)}%)`;
+        document.getElementById('reportSummary').textContent = report.summary;
+        document.getElementById('reportLikelyCause').textContent = report.likely_cause;
+
+        // Verified Facts
+        const factsList = document.getElementById('verifiedFactsList');
+        factsList.innerHTML = (report.verified_facts || []).map(f => `<li>${f}</li>`).join('') || '<li>None</li>';
+
+        // Hypotheses
+        const hypList = document.getElementById('hypothesesList');
+        hypList.innerHTML = (report.hypotheses || []).map(h => `<li>${h}</li>`).join('') || '<li>None</li>';
+
+        // Unanswered Questions
+        const qList = document.getElementById('unansweredQuestionsList');
+        qList.innerHTML = (report.unanswered_questions || []).map(q => `<li>${q}</li>`).join('') || '<li>None</li>';
+
+        // Recommended Actions
+        const actionsContainer = document.getElementById('actionsContainer');
+        actionsContainer.innerHTML = (report.recommended_actions || []).map(a => `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-200">${a.action}</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded font-bold ${a.priority.includes('P0') ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-indigo-500/20 text-indigo-300'}">${a.priority}</span>
+            </div>
+            <p class="text-[11px] text-slate-400">${a.rationale}</p>
+            <div class="bg-black/60 p-2 rounded text-[11px] font-mono text-emerald-400 border border-slate-800 flex items-center justify-between">
+              <code>${a.command_or_check}</code>
+              <span class="text-[10px] text-slate-500 uppercase">Read-Only</span>
+            </div>
+          </div>
+        `).join('');
+
+        // Timeline
+        const timelineContainer = document.getElementById('timelineContainer');
+        if (report.timeline && report.timeline.length > 0) {
+          timelineContainer.innerHTML = report.timeline.map(t => `
+            <div class="relative group">
+              <div class="absolute -left-[29px] top-1 w-3 h-3 rounded-full border-2 border-slate-900 ${t.level === 'DEPLOYMENT' ? 'bg-blue-400' : t.level === 'ERROR' ? 'bg-red-500' : t.level === 'EXTERNAL' ? 'bg-purple-400' : 'bg-amber-400'}"></div>
+              <div class="text-[10px] font-mono text-slate-400">${t.timestamp}</div>
+              <div class="text-xs font-bold text-slate-200">${t.event}</div>
+              <div class="text-[11px] text-slate-400">${t.notes}</div>
+            </div>
+          `).join('');
+        }
+
+        // Evidence & Logs
+        const evidenceContainer = document.getElementById('evidenceContainer');
+        if (report.evidence && report.evidence.length > 0) {
+          evidenceContainer.innerHTML = report.evidence.map(e => `
+            <div class="p-2 rounded bg-slate-900/90 border border-slate-800 text-slate-300">
+              <span class="text-red-400 font-bold">[${e.level}]</span> <span class="text-slate-400">${e.timestamp}</span> [${e.service}]
+              <div class="text-slate-200 mt-0.5">${e.message}</div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // Render Logs
+      const logsContainer = document.getElementById('agentActivityLogs');
+      if (logs.length > 0) {
+        logsContainer.innerHTML = logs.map(l => `
+          <div class="flex items-start space-x-2 py-0.5">
+            <span class="text-slate-500 text-[10px]">${l.timestamp.split('T')[1].slice(0, 8)}</span>
+            <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${
+              l.level === 'ERROR' ? 'bg-red-500/20 text-red-400' :
+              l.level === 'WARN' ? 'bg-amber-500/20 text-amber-400' :
+              l.level === 'TOOL' ? 'bg-purple-500/20 text-purple-400' :
+              'bg-blue-500/20 text-blue-400'
+            }">${l.level}</span>
+            <span class="text-slate-400 font-semibold">[${l.agent_name}]:</span>
+            <span class="text-slate-200">${l.message}</span>
+          </div>
+        `).join('');
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+      }
+    }
+
+    function startPolling(id) {
+      if (pollInterval) clearInterval(pollInterval);
+      loadIncidentDetail(id);
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/incidents/${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            renderIncidentWorkspace(data);
+            if (data.incident.status === 'completed' || data.incident.status === 'failed') {
+              clearInterval(pollInterval);
+              fetchIncidents();
+            }
+          }
+        } catch (e) {
+          console.error('Polling error', e);
+        }
+      }, 1500);
+    }
+
+    // Auto-select first incident or seed scenario on load
+    window.addEventListener('DOMContentLoaded', () => {
+      {% if incidents and incidents|length > 0 %}
+        selectIncident('{{ incidents[0].id }}');
+      {% else %}
+        loadScenario('scenario-checkout-failure');
+      {% endif %}
+    });
+  </script>
+</body>
+</html>

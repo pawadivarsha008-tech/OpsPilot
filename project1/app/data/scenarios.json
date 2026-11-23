@@ -1,0 +1,98 @@
+[
+  {
+    "id": "scenario-checkout-failure",
+    "title": "Checkout API 500 Spike & Payment Processing Timeouts",
+    "service": "checkout-service",
+    "timeframe": "2026-11-23T13:40:00Z to 2026-11-23T14:20:00Z",
+    "alert_text": "ALERT [CRITICAL] PagerDuty: Checkout-Service ErrorRate > 8.5% in us-east-1. Upstream dependencies payment-gateway-v2 throwing HTTP 504 Gateway Timeout. User impact: Users unable to complete purchases during Black Friday flash sale.",
+    "description": "Customer complaints surged in #support-ops reporting 'Order Failed' toasts. Checkout latencies degraded from 140ms to 9.8s starting around 13:45 UTC. Database connection pool exhaustion reported on db-read-replica-02.",
+    "logs": [
+      "2026-11-23T13:42:15.102Z [checkout-service] [INFO] Deployment canary v2.14.0 promoted to 100% production traffic by deploy-bot (commit 4f98ba1)",
+      "2026-11-23T13:45:02.431Z [checkout-service] [WARN] ConnectionPoolTimeoutException: Timeout waiting for idle connection from pool 'PostgresPool' (max=100, active=100, waiting=24)",
+      "2026-11-23T13:45:18.892Z [checkout-service] [ERROR] POST /v1/orders/checkout failed - 504 Gateway Timeout (upstream: https://api.stripe-mock.internal/v1/charges)",
+      "2026-11-23T13:46:01.012Z [checkout-service] [ERROR] CircuitBreaker 'StripeClient' OPEN: failure rate 85.0% exceeded threshold 50.0%",
+      "2026-11-23T13:47:33.784Z [checkout-service] [ERROR] DeadlockDetected: transaction aborted while updating inventory_locks table for sku_994201",
+      "2026-11-23T13:50:11.205Z [auth-service] [WARN] Token validation latency spiked to 1250ms due to high TLS handshake concurrency",
+      "2026-11-23T13:52:45.918Z [checkout-service] [FATAL] OOMKilled container checkout-service-pod-79dfb8c4c6-4k9ql (memory limit 2048Mi exceeded)",
+      "2026-11-23T13:54:10.113Z [k8s-node-manager] [WARN] Evicting pod checkout-service-pod-79dfb8c4c6-4k9ql. Node worker-pool-c under severe memory pressure",
+      "2026-11-23T13:58:20.449Z [checkout-service] [ERROR] Fallback queue payment_retries_deadletter dropped 412 unprocessable messages: Redis memory cap exceeded"
+    ],
+    "status_pages": [
+      {
+        "name": "Cloudflare Status",
+        "url": "https://www.cloudflarestatus.com",
+        "status": "Operational",
+        "recent_incident": "No ongoing incidents reported in US-East edge nodes."
+      },
+      {
+        "name": "Stripe Status",
+        "url": "https://status.stripe.com",
+        "status": "Degraded Performance",
+        "recent_incident": "Investigating elevated API latency and intermittent 504 errors on Custom Connect & Charges endpoints (Identified: 13:44 UTC)."
+      },
+      {
+        "name": "AWS Health Dashboard (us-east-1)",
+        "url": "https://health.aws.amazon.com/health/status",
+        "status": "Operational",
+        "recent_incident": "Normal operations across RDS and EKS clusters."
+      },
+      {
+        "name": "Internal Legacy Payment Hub",
+        "url": "https://status.internal-payment.corp/healthz",
+        "status": "Unreachable / 503 Service Unavailable",
+        "recent_incident": "Simulated downstream unreachable probe (demonstrates graceful handling of missing or failing source)."
+      }
+    ]
+  },
+  {
+    "id": "scenario-auth-cascade",
+    "title": "Auth0 / JWT Token Verification Failures Across Microservices",
+    "service": "auth-service",
+    "timeframe": "2026-11-23T11:00:00Z to 2026-11-23T11:45:00Z",
+    "alert_text": "ALERT [HIGH] APIGateway: 401 Unauthorized rate jumped to 62% on all authenticated routes. Public key certificate cache invalidated.",
+    "description": "Users are being logged out across mobile and web clients. Requests to /api/* return 401 Unauthorized with 'invalid_jwks_signature'.",
+    "logs": [
+      "2026-11-23T11:02:10.012Z [api-gateway] [INFO] Rotating JWKS public key cache (cache TTL expired after 24h)",
+      "2026-11-23T11:02:14.331Z [api-gateway] [ERROR] Failed to fetch JWKS keyset from https://auth.idp.internal/.well-known/jwks.json: SSL: CERTIFICATE_VERIFY_FAILED: certificate has expired",
+      "2026-11-23T11:03:00.180Z [auth-service] [ERROR] Token verification rejected: Kid '2025-keyset-b' not found in cached public key set",
+      "2026-11-23T11:05:42.990Z [user-service] [WARN] Inbound RPC Reject: invalid authorization header bearer token from client IP 198.51.100.44",
+      "2026-11-23T11:08:12.774Z [api-gateway] [CRITICAL] Falling back to reject-all for unsigned tokens; 14,200 requests rejected in last 5m"
+    ],
+    "status_pages": [
+      {
+        "name": "Auth0 Status",
+        "url": "https://status.auth0.com",
+        "status": "Operational",
+        "recent_incident": "All systems operational globally."
+      },
+      {
+        "name": "Corporate Internal PKI / Vault",
+        "url": "https://vault.internal.corp/v1/sys/health",
+        "status": "Degraded",
+        "recent_incident": "Root TLS Intermediate cert rotater service failed auto-renewal at 11:00 UTC due to IAM role policy restriction."
+      }
+    ]
+  },
+  {
+    "id": "scenario-database-deadlock",
+    "title": "PostgreSQL Primary High CPU & Replication Lag Degradation",
+    "service": "database-cluster",
+    "timeframe": "2026-11-23T08:15:00Z to 2026-11-23T09:00:00Z",
+    "alert_text": "ALERT [WARNING] RDS Postgres CPUUtilization > 96% for 10 minutes. Replication lag on replica-01 reached 180 seconds.",
+    "description": "Reporting analytics background cron initiated an unindexed sequential scan on the 45M-row audit_events table, blocking customer writes.",
+    "logs": [
+      "2026-11-23T08:16:05.109Z [pg-audit-cron] [INFO] Starting daily compliance aggregate job: SELECT * FROM audit_events WHERE created_at > NOW() - INTERVAL '30 days' ORDER BY event_id",
+      "2026-11-23T08:18:22.450Z [postgres-primary] [WARN] process 41902 still waiting for AccessShareLock on relation audit_events after 120000 ms",
+      "2026-11-23T08:22:15.892Z [postgres-primary] [ERROR] Deadlock detected: Process 41902 waits for ExclusiveLock; Process 42100 waits for RowExclusiveLock",
+      "2026-11-23T08:25:30.114Z [postgres-replica-01] [CRITICAL] Replication lag exceeded 180s; streaming WAL receiver lagging behind by 14 WAL segments (224MB)"
+    ],
+    "status_pages": [
+      {
+        "name": "AWS Relational Database Service (RDS)",
+        "url": "https://health.aws.amazon.com/rds",
+        "status": "Operational",
+        "recent_incident": "No platform degradation."
+      }
+    ]
+  }
+]
